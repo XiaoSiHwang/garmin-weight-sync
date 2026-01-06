@@ -55,7 +55,7 @@ class GarminClient:
             else:
                 garth.configure(domain="garmin.com")
             
-            garth.login(self.email, self.password)
+            garth.login(self.email, self.password, prompt_mfa=lambda: input("Enter Garmin MFA code: "))
             
             # Save session
             self.session_dir.mkdir(parents=True, exist_ok=True)
