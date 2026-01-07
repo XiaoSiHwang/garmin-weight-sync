@@ -69,6 +69,83 @@ pip install -r requirements.txt
 
 ---
 
+## 2.5. Docker 部署（推荐）
+
+如果您不想安装 Python 环境，可以使用 Docker 方式部署，更加简单快捷。
+
+### 前置要求
+
+安装 Docker Desktop：
+- Windows/Mac: 访问 [Docker Desktop 官网](https://www.docker.com/products/docker-desktop) 下载安装
+- Linux: 运行 `curl -fsSL https://get.docker.com | sh`
+
+验证安装：
+```bash
+docker --version
+```
+
+### 快速开始
+
+1. **获取项目代码**
+   ```bash
+   git clone <项目地址>
+   cd garmin-weight-sync
+   ```
+
+2. **创建配置文件**
+   ```bash
+   # Linux/Mac
+   cp config/users.json.template config/users.json
+
+   # Windows 用户在文件管理器中复制并重命名
+   ```
+
+   编辑 `config/users.json`，填写您的账户信息（参考下方"快速配置"章节）。
+
+3. **拉取 Docker 镜像**
+   ```bash
+   docker-compose pull
+   ```
+
+4. **首次登录（获取小米授权）**
+   ```bash
+   docker-compose --profile login run --rm login
+   ```
+
+   按照提示完成小米账号的验证码登录流程。
+
+5. **执行同步**
+   ```bash
+   docker-compose run --rm sync
+   ```
+
+### 设置定时任务
+
+**Linux/Mac (crontab)**:
+```bash
+# 每天凌晨 2 点自动同步
+0 2 * * * cd /您的项目路径 && docker-compose run --rm sync
+```
+
+**Windows (任务计划程序)**:
+- 创建基本任务
+- 程序: `docker-compose`
+- 参数: `run --rm sync`
+- 起始于: 项目完整路径
+
+### 常用命令
+
+| 操作 | 命令 |
+|------|------|
+| 拉取镜像 | `docker-compose pull` |
+| 首次登录 | `docker-compose --profile login run --rm login` |
+| 执行同步 | `docker-compose run --rm sync` |
+| 查看日志 | `docker-compose logs sync` |
+
+**详细文档**: 请查看 [DOCKER_SETUP.md](DOCKER_SETUP.md) 了解更多 Docker 部署说明。
+
+---
+
 ## 3. 快速配置
 
 在项目文件夹中，找到 `users.json` 文件（如果没有，请手动新建一个）。**这是程序唯一的配置文件。**

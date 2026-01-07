@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # Login service - run once for initial setup
+  login:
+    image: lesliehwang/garmin-weight-sync:latest
+    container_name: garmin-sync-login
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    stdin_open: true
+    tty: true
+    command: ["python", "src/xiaomi/login.py", "--config", "config/users.json"]
+    profiles:
+      - login
+
+  # Sync service - run periodically
+  sync:
+    image: lesliehwang/garmin-weight-sync:latest
+    container_name: garmin-sync
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    command: ["python", "src/main.py", "--config", "config/users.json", "--sync"]
