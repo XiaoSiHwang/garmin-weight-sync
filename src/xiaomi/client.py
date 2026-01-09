@@ -114,6 +114,62 @@ def unmarshal_scale_data(items):
 
     return weights, last_create_time
 
+
+def unmarshal_fitness_data(data_list):
+    """
+    Parse health data returned from the new API.
+    Data format:
+    {
+        "sid": "Data source ID",
+        "key": "weight",
+        "time": timestamp (in seconds),
+        "value": "JSON string with detailed data",
+        "zone_offset": timezone offset,
+        "update_time": update time,
+        "zone_name": "Time zone name"
+    }
+    """
+    weights = []
+    
+    for item in data_list:
+        if item.get("key") != "weight":
+            continue
+            
+        time_stamp = item.get("time", 0)
+        value_str = item.get("value", "{}")
+        
+        try:
+            value_data = json.loads(value_str)
+        except:
+            _LOGGER.warning(f"Failed to parse value data: {value_str}")
+            continue
+        
+        w = {}
+        # Convert timestamp (in seconds) to readable format
+        w['Date'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time_stamp))
+        w['Timestamp'] = time_stamp
+        w['Sid'] = item.get("sid")
+        w['ZoneOffset'] = item.get("zone_offset")
+        w['ZoneName'] = item.get("zone_name")
+        w['UpdateTime'] = item.get("update_time")
+        
+        # Parse body data from value
+        w['Weight'] = parse_any_float(value_data.get("weight") or value_data.get("w"))
+        w['BMI'] = parse_any_float(value_data.get("bmi"))
+        w['BodyFat'] = parse_any_float(value_data.get("body_fat_rate") or value_data.get("bfp") or value_data.get("body_fat") or value_data.get("fat"))
+        w['BodyWater'] = parse_any_float(value_data.get("moisture_rate") or value_data.get("bwp") or value_data.get("body_water") or value_data.get("water"))
+        w['BoneMass'] = parse_any_float(value_data.get("bone_mass") or value_data.get("bmc") or value_data.get("bone"))
+        w['MetabolicAge'] = parse_any_int(value_data.get("ma") or value_data.get("metabolic_age"))
+        w['MuscleMass'] = parse_any_float(value_data.get("muscle_rate") or value_data.get("slm") or value_data.get("muscle_mass") or value_data.get("muscle"))
+        w['VisceralFat'] = parse_any_int(value_data.get("visceral_fat") or value_data.get("vfl"))
+        w['BasalMetabolism'] = parse_any_int(value_data.get("basal_metabolism") or value_data.get("bmr"))
+        w['BodyScore'] = parse_any_int(value_data.get("sbc") or value_data.get("body_score"))
+        w['HeartRate'] = parse_any_int(value_data.get("heartRate") or value_data.get("heart_rate") or value_data.get("hr"))
+        w['ProteinRate'] = parse_any_float(value_data.get("protein_rate"))
+        weights.append(w)
+    
+    return weights
+
 class XiaomiClient:
     def __init__(self, username=None, password=None, region="cn"):
         self.username = username
@@ -280,7 +336,80 @@ class XiaomiClient:
             except:
                 return resp.text
 
+    def get_fitness_data_by_time(self, key="weight", start_time=1, end_time=None):
+        """
+        Get health data using the new API endpoint.
+        API: /app/v1/data/get_fitness_data_by_time
+        Supports retrieving all health data, including that imported from Zeeplife.
+        
+        Args:
+            key: Data type, e.g. "weight", "steps", "sleep", etc.
+            start_time: Start timestamp (in seconds), defaults to 1 for earliest
+            end_time: End timestamp (in seconds), defaults to current time + 24 hours
+        
+        Returns:
+            List of all retrieved data
+        """
+        if end_time is None:
+            # Default end time: current time + 24 hours (in seconds)
+            end_time = int(time.time()) + 24 * 60 * 60
+        
+        _LOGGER.info(f"Fetching {key} data using new API...")
+        
+        all_data = []
+        next_key = None
+        
+        while True:
+            # Build request parameters
+            params = {
+                "start_time": start_time,
+                "end_time": end_time,
+                "key": key
+            }
+            
+            if next_key:
+                params["next_key"] = next_key
+            
+            req_params = json.dumps(params, separators=(',', ':'))
+            
+            try:
+                # Call the new API endpoint
+                data = self.request("/app/v1/data/get_fitness_data_by_time", req_params)
+                
+                # Parse response - API returns: {"code": 0, "result": {"data_list": [...], "has_more": ..., "next_key": ...}}
+                if isinstance(data, dict):
+                    # Check API response code
+                    if data.get("code") != 0:
+                        _LOGGER.error(f"API returned error: {data.get('message', 'unknown error')}")
+                        break
+                    
+                    # Get data from result
+                    result = data.get("result", {})
+                    data_list = result.get("data_list", [])
+                    has_more = result.get("has_more", False)
+                    next_key = result.get("next_key")
+                    
+                    all_data.extend(data_list)
+                    
+                    # Check if there is more data
+                    if not has_more or not next_key:
+                        break
+                else:
+                    _LOGGER.warning(f"Unexpected response type: {type(data)}")
+                    break
+                    
+            except Exception as e:
+                _LOGGER.error(f"Request failed: {e}")
+                break
+        
+        _LOGGER.info(f"Successfully fetched {len(all_data)} items of {key} data")
+        return all_data
+    
     def get_model_weights(self, model):
+        """
+        Legacy API method (kept for compatibility).
+        It is recommended to use get_fitness_data_by_time("weight") instead.
+        """
         _LOGGER.info(f"Fetching data for model: {model}...")
         ts = int(time.time() * 1000)
         all_weights = []
@@ -324,6 +453,7 @@ class XiaomiClient:
                 break
                 
             items = inner_resp.get("result", [])
+            
             if not items:
                 break
             

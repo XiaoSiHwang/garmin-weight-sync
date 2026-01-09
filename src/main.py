@@ -10,12 +10,16 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from xiaomi.config import ConfigManager
-from xiaomi.client import XiaomiClient
+from xiaomi.client import XiaomiClient, unmarshal_fitness_data
 from garmin.fit_generator import create_weight_fit_file
 from garmin.client import GarminClient
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure logging - force reconfiguration
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True
+)
 logger = logging.getLogger(__name__)
 
 
@@ -140,19 +144,34 @@ def main():
             )
             
             try:
-                # Validate/Refresh token
+                # Validate/refresh token
                 logger.info("Logging in with saved Xiaomi token...")
                 new_token_data = client.login_from_token()
                 
-                # Update token in config if changed
+                # Update the token in config if changed
                 if new_token_data:
                      config_mgr.update_user_token(username, new_token_data)
                      logger.info("Xiaomi token refreshed and saved")
                 
-                # Fetch weights
-                logger.info(f"Fetching weight data for model: {model}")
-                weights = client.get_model_weights(model)
+                # Fetch weights - prefer using the new API (supports imported data from zeeplife)
+                weights = []
                 
+                # First attempt to use the new API endpoint
+                logger.info("Trying to fetch weight data using the new API...")
+                try:
+                    fitness_data = client.get_fitness_data_by_time(key="weight")
+                    if fitness_data:
+                        logger.info(f"Successfully fetched {len(fitness_data)} raw records using the new API")
+                        weights = unmarshal_fitness_data(fitness_data)
+                        logger.info(f"Parsed and obtained {len(weights)} weight records")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch data with the new API: {e}")
+                    logger.info("Falling back to legacy API...")
+                
+                # If no data from the new API, use the legacy API (for backward compatibility)
+                if not weights:
+                    logger.info(f"Using legacy API, model: {model}")
+                    weights = client.get_model_weights(model)
                 if weights:
                     logger.info(f"Successfully retrieved {len(weights)} weight records")
                     display_weight_data(weights, limit=args.limit)
