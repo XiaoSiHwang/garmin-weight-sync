@@ -3,12 +3,15 @@ import datetime
 import logging
 from pathlib import Path
 from typing import List, Dict, Union
+import sys
 
 from fit_tool.fit_file_builder import FitFileBuilder
 from fit_tool.profile.messages.file_id_message import FileIdMessage
-from fit_tool.profile.messages.weight_scale_message import WeightScaleMessage
 from fit_tool.profile.profile_type import FileType, Manufacturer
 
+# Ensure we can import from the parent package
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from garmin.weight_scale_message import WeightScaleMessage
 _LOGGER = logging.getLogger(__name__)
 
 def create_weight_fit_file(weights: List[Dict], output_filename: Union[str, Path] = "weights.fit"):
@@ -115,3 +118,5 @@ def create_weight_fit_file(weights: List[Dict], output_filename: Union[str, Path
     fit_file.to_file(str(output_path))
     _LOGGER.info(f"Generated FIT file with {added_count} records: {output_path}")
     return output_path
+
+
