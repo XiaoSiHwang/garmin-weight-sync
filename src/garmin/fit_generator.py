@@ -2,7 +2,7 @@
 import datetime
 import logging
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional
 import sys
 
 from fit_tool.fit_file_builder import FitFileBuilder
@@ -14,10 +14,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from garmin.weight_scale_message import WeightScaleMessage
 _LOGGER = logging.getLogger(__name__)
 
-def create_weight_fit_file(weights: List[Dict], output_filename: Union[str, Path] = "weights.fit"):
+def create_weight_fit_file(
+    weights: List[Dict],
+    output_filename: Union[str, Path] = "weights.fit",
+    filter_config: Optional[Dict] = None
+):
     """
     Creates a FIT file containing the provided weight data.
-    
+
     Args:
         weights: A list of dicts containing weight data. Expected keys:
                  - 'Date' (datetime or str) or 'Timestamp' (float/int)
@@ -31,8 +35,33 @@ def create_weight_fit_file(weights: List[Dict], output_filename: Union[str, Path
                  - 'VisceralFat' (rating)
                  - 'BasalMetabolism' (kcal)
         output_filename: The name of the output FIT file.
+        filter_config: Optional filter configuration for filtering weight data.
     """
-    
+    # Apply filter if configured
+    if filter_config is not None:
+        from garmin.filter_config import FilterConfigValidator
+        from garmin.filter import apply_filter
+
+        try:
+            # Validate filter configuration
+            FilterConfigValidator.validate(filter_config)
+
+            # Apply filter
+            original_count = len(weights)
+            weights = apply_filter(weights, filter_config)
+
+            if len(weights) < original_count:
+                filtered_out = original_count - len(weights)
+                _LOGGER.info(
+                    f"Filter reduced records from {original_count} to {len(weights)} "
+                    f"({filtered_out} filtered out)"
+                )
+
+        except Exception as e:
+            _LOGGER.error(f"Filter error: {e}. Continuing without filter.")
+            _LOGGER.info("Please check your filter configuration in users.json")
+            # Continue with original data on error
+
     builder = FitFileBuilder(auto_define=True, min_string_size=50)
 
     # 1. File ID Message

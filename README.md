@@ -10,7 +10,8 @@
 3. [快速配置](#3-快速配置)
 4. [核心使用流程](#4-核心使用流程)
 5. [进阶功能说明](#5-进阶功能说明)
-6. [常见问题 (FAQ)](#6-常见问题-faq)
+6. [数据过滤配置](#6-数据过滤配置)
+7. [常见问题 (FAQ)](#7-常见问题-faq)
 
 ---
 
@@ -238,7 +239,50 @@ python src/main.py --config users.json --sync
 
 ---
 
-## 6. 常见问题 (FAQ)
+## 6. 数据过滤配置 
+
+本工具支持在同步数据前根据健康指标过滤体重数据。详细配置请查看 [FILTER_CONFIG.md](FILTER_CONFIG.md)。
+
+### 快速示例
+
+在 `users.json` 中为每个用户配置独立的过滤规则：
+
+```json
+{
+    "users": [
+        {
+            "username": "您的手机号/邮箱",
+            "password": "小米账号密码",
+            "model": "yunmai.scales.ms103",
+            "token": { ... },
+            "garmin": {
+                "email": "您的佳明账号",
+                "password": "佳明账号密码",
+                "domain": "CN",
+                "filter": {
+                    "enabled": true,
+                    "conditions": [
+                        { "field": "Weight", "operator": "between", "value": [60, 70] }
+                    ],
+                    "logic": "and"
+                }
+            }
+        }
+    ]
+}
+```
+
+### 功能特性
+- 支持按体重、BMI、体脂率等多个指标过滤
+- 支持多个条件组合（AND/OR 逻辑）
+- 每个用户可独立配置过滤规则
+- 向后兼容，不配置则同步所有数据
+
+**完整文档**: [FILTER_CONFIG.md](FILTER_CONFIG.md)
+
+---
+
+## 7. 常见问题 (FAQ)
 
 ### Q: 提示 `ModuleNotFoundError: No module named 'requests'` 怎么办？
 A: 确保您已激活虚拟环境并运行了 `pip install -r requirements.txt`。
