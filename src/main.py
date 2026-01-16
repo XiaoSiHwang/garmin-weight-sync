@@ -9,6 +9,7 @@ import logging
 import json
 import datetime
 from pathlib import Path
+import time
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent))
@@ -266,7 +267,8 @@ def main():
             logger.warning(
                 f"No valid token for {username}. Please run the login tool to generate a token.")
             logger.info("Run: python src/xiaomi/login.py --config users.json")
-
+        logger.info("Sleep 5 seconds")
+        time.sleep( 5 )
 
 if __name__ == "__main__":
     main()
