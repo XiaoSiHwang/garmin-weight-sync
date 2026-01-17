@@ -81,17 +81,21 @@ class XiaomiPage(QWizardPage):
         self.registerField("xiaomi_device", self.device_combo, "currentData")
 
     def validatePage(self) -> bool:
-        """验证页面输入"""
+        """验证页面并保存数据"""
         username = self.username_field.text().strip()
         password = self.password_field.text().strip()
+        model = self.device_combo.currentData()
 
-        if not username:
-            self.wizard().setError("请输入用户名或手机号")
+        if not username or not password:
             return False
 
-        if not password:
-            self.wizard().setError("请输入密码")
-            return False
+        # TODO: 在后续任务中实现小米登录验证
+        # 暂时保存数据
+        self.wizard().xiaomi_data = {
+            "username": username,
+            "password": password,
+            "model": model
+        }
 
         return True
 
@@ -183,21 +187,20 @@ class GarminPage(QWizardPage):
         self.registerField("garmin_password*", self.password_field)
 
     def validatePage(self) -> bool:
-        """验证页面输入"""
+        """验证页面并保存数据"""
         email = self.email_field.text().strip()
         password = self.password_field.text().strip()
+        domain = "CN" if self.cn_radio.isChecked() else "COM"
 
-        if not email:
-            self.wizard().setError("请输入 Garmin 账号邮箱")
+        if not email or not password:
             return False
 
-        if "@" not in email:
-            self.wizard().setError("请输入有效的邮箱地址")
-            return False
-
-        if not password:
-            self.wizard().setError("请输入 Garmin 账号密码")
-            return False
+        # 保存数据
+        self.wizard().garmin_data = {
+            "email": email,
+            "password": password,
+            "domain": domain
+        }
 
         return True
 
@@ -218,7 +221,6 @@ class AddUserDialog(QWizard):
         self.config_manager = config_manager
         self.xiaomi_data: Optional[Dict[str, Any]] = None
         self.garmin_data: Optional[Dict[str, Any]] = None
-        self._error_message: Optional[str] = None
 
         self._init_ui()
 
@@ -237,34 +239,6 @@ class AddUserDialog(QWizard):
         self.addPage(self.xiaomi_page)
         self.addPage(self.garmin_page)
 
-        # 连接信号
-        self.finished.connect(self._on_finished)
-
-    def setError(self, message: str):
-        """设置错误消息"""
-        self._error_message = message
-
-    def getError(self) -> Optional[str]:
-        """获取错误消息"""
-        return self._error_message
-
-    def _on_finished(self, result: int):
-        """向导完成时的回调"""
-        if result == QWizard.DialogCode.Accepted:
-            # 收集小米账户数据
-            self.xiaomi_data = {
-                "username": self.field("xiaomi_username"),
-                "password": self.field("xiaomi_password"),
-                "model": self.field("xiaomi_device")
-            }
-
-            # 收集 Garmin 账户数据
-            self.garmin_data = {
-                "email": self.field("garmin_email"),
-                "password": self.field("garmin_password"),
-                "domain": "CN" if self.garmin_page.cn_radio.isChecked() else "COM"
-            }
-
     def getXiaomiData(self) -> Optional[Dict[str, Any]]:
         """获取小米账户数据"""
         return self.xiaomi_data
@@ -273,7 +247,7 @@ class AddUserDialog(QWizard):
         """获取 Garmin 账户数据"""
         return self.garmin_data
 
-    def getUserData(self) -> Optional[Dict[str, Any]]:
+    def get_user_data(self) -> Optional[Dict[str, Any]]:
         """获取完整的用户数据"""
         if not self.xiaomi_data or not self.garmin_data:
             return None
