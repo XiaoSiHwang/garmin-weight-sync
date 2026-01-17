@@ -15,6 +15,9 @@ import base64
 class XiaomiPage(QWizardPage):
     """向导第一步: 小米账户信息"""
 
+    # 类常量
+    MAX_RETRY_COUNT = 3
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._init_ui()
@@ -81,6 +84,23 @@ class XiaomiPage(QWizardPage):
         self.registerField("xiaomi_password*", self.password_field)
         self.registerField("xiaomi_device", self.device_combo, "currentData")
 
+    def _save_xiaomi_data(self, username: str, password: str, model: str, token_data: Dict[str, str]):
+        """
+        保存小米账户数据到向导
+
+        Args:
+            username: 用户名
+            password: 密码
+            model: 设备型号
+            token_data: token 数据字典
+        """
+        self.wizard().xiaomi_data = {
+            "username": username,
+            "password": password,
+            "model": model,
+            "token": token_data
+        }
+
     def validatePage(self) -> bool:
         """验证页面并保存数据"""
         username = self.username_field.text().strip()
@@ -104,12 +124,7 @@ class XiaomiPage(QWizardPage):
             if result.get("ok"):
                 # 登录成功,提取 token 数据并保存
                 token_data = self._extract_token_data(result, micloud_sync)
-                self.wizard().xiaomi_data = {
-                    "username": username,
-                    "password": password,
-                    "model": model,
-                    "token": token_data
-                }
+                self._save_xiaomi_data(username, password, model, token_data)
                 return True
 
             # 处理验证码
@@ -117,12 +132,7 @@ class XiaomiPage(QWizardPage):
                 captcha_result = self._handle_captcha(captcha_image, micloud_sync)
                 if captcha_result["success"]:
                     token_data = captcha_result["token"]
-                    self.wizard().xiaomi_data = {
-                        "username": username,
-                        "password": password,
-                        "model": model,
-                        "token": token_data
-                    }
+                    self._save_xiaomi_data(username, password, model, token_data)
                     return True
                 else:
                     # 显示错误信息并阻止继续
@@ -139,12 +149,7 @@ class XiaomiPage(QWizardPage):
                 mfa_result = self._handle_mfa(verify_info, micloud_sync)
                 if mfa_result["success"]:
                     token_data = mfa_result["token"]
-                    self.wizard().xiaomi_data = {
-                        "username": username,
-                        "password": password,
-                        "model": model,
-                        "token": token_data
-                    }
+                    self._save_xiaomi_data(username, password, model, token_data)
                     return True
                 else:
                     # 显示错误信息并阻止继续
@@ -185,8 +190,8 @@ class XiaomiPage(QWizardPage):
         Returns:
             包含 success 和 token/error 的字典
         """
-        # 最多重试 3 次
-        if retry_count >= 3:
+        # 最多重试 MAX_RETRY_COUNT 次
+        if retry_count >= self.MAX_RETRY_COUNT:
             return {
                 "success": False,
                 "error": "验证码错误次数过多"
@@ -215,7 +220,7 @@ class XiaomiPage(QWizardPage):
                 QMessageBox.warning(
                     self.wizard(),
                     "验证码错误",
-                    f"验证码输入错误,请重试 ({retry_count + 1}/3)"
+                    f"验证码输入错误,请重试 ({retry_count + 1}/{self.MAX_RETRY_COUNT})"
                 )
                 return self._handle_captcha(captcha, micloud_sync, retry_count + 1)
             else:
@@ -244,8 +249,8 @@ class XiaomiPage(QWizardPage):
         Returns:
             包含 success 和 token/error 的字典
         """
-        # 最多重试 3 次
-        if retry_count >= 3:
+        # 最多重试 MAX_RETRY_COUNT 次
+        if retry_count >= self.MAX_RETRY_COUNT:
             return {
                 "success": False,
                 "error": "验证码错误次数过多"
@@ -268,11 +273,11 @@ class XiaomiPage(QWizardPage):
                 }
             else:
                 # 验证码错误
-                if retry_count < 2:
+                if retry_count < self.MAX_RETRY_COUNT - 1:
                     QMessageBox.warning(
                         self.wizard(),
                         "验证失败",
-                        f"二次验证码错误,请重试 ({retry_count + 1}/3)"
+                        f"二次验证码错误,请重试 ({retry_count + 1}/{self.MAX_RETRY_COUNT})"
                     )
                     return self._handle_mfa(verify_info, micloud_sync, retry_count + 1)
                 else:
