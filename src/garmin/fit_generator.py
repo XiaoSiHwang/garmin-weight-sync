@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Union, Optional
 import sys
+import math
 
 from fit_tool.fit_file_builder import FitFileBuilder
 from fit_tool.profile.messages.file_id_message import FileIdMessage
@@ -13,6 +14,14 @@ from fit_tool.profile.profile_type import FileType, Manufacturer
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from garmin.weight_scale_message import WeightScaleMessage
 _LOGGER = logging.getLogger(__name__)
+
+
+def _is_nan(value) -> bool:
+    """Check if a value is NaN (Not a Number)."""
+    try:
+        return math.isnan(float(value))
+    except (ValueError, TypeError):
+        return False
 
 def create_weight_fit_file(
     weights: List[Dict],
@@ -102,34 +111,37 @@ def create_weight_fit_file(
         # fit-tool expects milliseconds for timestamp field in some contexts, 
         # but let's see. Library usage in generate_fit_file.py used *1000.
         mesg.timestamp = int(ts * 1000)
-        
-        # Mappings from Xiaomi data structure to FIT WeightScaleMessage fields
-        if w.get('Weight'):
-            mesg.weight = float(w['Weight'])
-            
-        if w.get('BMI'):
-            mesg.bmi = float(w['BMI'])
-            
-        if w.get('BodyFat'):
-            mesg.percent_fat = float(w['BodyFat'])
-            
-        if w.get('BodyWater'):
-            mesg.percent_hydration = float(w['BodyWater'])
-            
-        if w.get('BoneMass'):
-            mesg.bone_mass = float(w['BoneMass'])
-        
-        if w.get('MetabolicAge'):
-            mesg.metabolic_age = int(w['MetabolicAge'])
+        try:
+            # Mappings from Xiaomi data structure to FIT WeightScaleMessage fields
+            if w.get('Weight') and not _is_nan(w['Weight']):
+                mesg.weight = float(w['Weight'])
 
-        if w.get('MuscleMass'):
-            mesg.muscle_mass = float(w['MuscleMass'])
-            
-        if w.get('VisceralFat'):
-            mesg.visceral_fat_rating = int(w['VisceralFat'])
-            
-        if w.get('BasalMetabolism'):
-            mesg.basal_met = float(w['BasalMetabolism'])
+            if w.get('BMI') and not _is_nan(w['BMI']):
+                mesg.bmi = float(w['BMI'])
+
+            if w.get('BodyFat') and not _is_nan(w['BodyFat']):
+                mesg.percent_fat = float(w['BodyFat'])
+
+            if w.get('BodyWater') and not _is_nan(w['BodyWater']):
+                mesg.percent_hydration = float(w['BodyWater'])
+
+            if w.get('BoneMass') and not _is_nan(w['BoneMass']):
+                mesg.bone_mass = float(w['BoneMass'])
+
+            if w.get('MetabolicAge') and not _is_nan(w['MetabolicAge']):
+                mesg.metabolic_age = int(w['MetabolicAge'])
+
+            if w.get('MuscleMass') and not _is_nan(w['MuscleMass']):
+                mesg.muscle_mass = float(w['MuscleMass'])
+
+            if w.get('VisceralFat') and not _is_nan(w['VisceralFat']):
+                mesg.visceral_fat_rating = int(w['VisceralFat'])
+
+            if w.get('BasalMetabolism') and not _is_nan(w['BasalMetabolism']):
+                mesg.basal_met = float(w['BasalMetabolism'])
+        except Exception as e:
+            _LOGGER.warning(f"Failed to parse weight data: {e}. Data: {w}")
+        
         
         builder.add(mesg)
         added_count += 1

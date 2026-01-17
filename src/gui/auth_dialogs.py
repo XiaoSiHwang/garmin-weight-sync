@@ -217,3 +217,108 @@ class MfaDialog(QDialog):
 
         self.verify_code = code
         super().accept()
+
+
+class GarminMfaDialog(QDialog):
+    """Garmin 两步验证码(MFA)输入对话框"""
+
+    def __init__(self, email: str, parent=None):
+        """
+        初始化 Garmin MFA 对话框
+
+        Args:
+            email: Garmin 账号邮箱
+            parent: 父窗口
+        """
+        super().__init__(parent)
+        self.mfa_code = None
+        self.email = email
+
+        self.setWindowTitle("Garmin 两步验证")
+        self.setModal(True)
+        self.setMinimumSize(400, 220)
+        self.setMaximumSize(400, 220)
+
+        self._init_ui()
+
+    def _init_ui(self):
+        """初始化 UI"""
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+
+        # 标题
+        title_label = QLabel("需要两步验证")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        # 账号信息
+        account_label = QLabel(f"账号: {self.email}")
+        account_label.setStyleSheet("color: #333; font-size: 13px;")
+        account_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(account_label)
+
+        # 说明文字
+        detail_label = QLabel("请输入 Garmin发送至手机或邮箱的二次验证码")
+        detail_label.setWordWrap(True)
+        detail_label.setStyleSheet("color: #666; font-size: 12px;")
+        detail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(detail_label)
+
+        # 输入框
+        input_layout = QHBoxLayout()
+        input_label = QLabel("验证码:")
+        self.input_field = QLineEdit()
+        self.input_field.setPlaceholderText("请输入6位验证码")
+        self.input_field.setMaxLength(6)
+        self.input_field.setMinimumHeight(35)
+        self.input_field.setEchoMode(QLineEdit.EchoMode.Normal)  # 正常显示输入
+        self.input_field.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        input_layout.addWidget(input_label)
+        input_layout.addWidget(self.input_field)
+        layout.addLayout(input_layout)
+
+        # 按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+
+        cancel_button = QPushButton("取消")
+        cancel_button.setMinimumWidth(100)
+        cancel_button.setMinimumHeight(35)
+        cancel_button.clicked.connect(self.reject)
+
+        ok_button = QPushButton("确定")
+        ok_button.setMinimumWidth(100)
+        ok_button.setMinimumHeight(35)
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(self.accept)
+
+        button_layout.addWidget(cancel_button)
+        button_layout.addWidget(ok_button)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+        # 设置焦点到输入框
+        self.input_field.setFocus()
+
+    def get_mfa_code(self) -> str:
+        """获取用户输入的验证码"""
+        return self.mfa_code if self.mfa_code else ""
+
+    def accept(self):
+        """确认按钮点击"""
+        code = self.input_field.text().strip()
+
+        if not code:
+            QMessageBox.warning(self, "提示", "请输入验证码")
+            self.input_field.setFocus()
+            return
+
+        if len(code) != 6 or not code.isdigit():
+            QMessageBox.warning(self, "提示", "请输入6位数字验证码")
+            self.input_field.setFocus()
+            return
+
+        self.mfa_code = code
+        super().accept()

@@ -37,6 +37,31 @@ class GarminClient:
 
     def login(self):
         """Log in to Garmin Connect and handle session persistence"""
+        return self._login_impl(lambda: input("Enter Garmin MFA code: "))
+
+    def login_for_ui(self, mfa_callback):
+        """
+        Log in to Garmin Connect with MFA callback for UI integration.
+
+        Args:
+            mfa_callback: A callable that returns the MFA code when invoked.
+                         This allows the UI to prompt the user for input.
+
+        Returns:
+            bool: True if login successful, False otherwise.
+        """
+        return self._login_impl(mfa_callback)
+
+    def _login_impl(self, mfa_provider):
+        """
+        Internal login implementation with configurable MFA provider.
+
+        Args:
+            mfa_provider: A callable that returns the MFA code when invoked.
+
+        Returns:
+            bool: True if login successful, False otherwise.
+        """
         try:
             # Try to resume from saved session
             if self.session_dir.exists() and any(self.session_dir.iterdir()):
@@ -55,7 +80,9 @@ class GarminClient:
             domain = "garmin.cn" if self.auth_domain and self.auth_domain.upper() == "CN" else "garmin.com"
             self._client.configure(domain=domain)
 
-            self._client.login(self.email, self.password, prompt_mfa=lambda: input("Enter Garmin MFA code: "))
+            logger.info(f"[DEBUG] 开始调用 garth login, mfa_provider={mfa_provider}")
+            self._client.login(self.email, self.password, prompt_mfa=mfa_provider)
+            logger.info(f"[DEBUG] garth login 调用完成")
 
             # Save session
             self.session_dir.mkdir(parents=True, exist_ok=True)

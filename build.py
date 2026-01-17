@@ -14,7 +14,7 @@ def build_gui():
     print("开始打包 GUI 版本...")
     print("=" * 60)
 
-    # 完整的隐藏导入列表，包含所有可能的依赖
+    # 精简的隐藏导入列表（优化启动速度）
     hidden_imports = [
         # PyQt6
         'PyQt6',
@@ -28,34 +28,18 @@ def build_gui():
         'core.models',
         'core.config_manager',
         'core.sync_service',
-        # jaraco 模块（pkg_resources 依赖）
-        'jaraco',
+        # pkg_resources 核心依赖（精简后）
         'jaraco.collections',
-        'jaraco.context',
         'jaraco.functools',
-        'jaraco.classes',
-        'jaraco.text',
-        'jaraco.compat',
-        # importlib 和 packaging
         'importlib_metadata',
         'pkg_resources',
-        'pkg_resources.extern',
         'packaging',
-        'packaging.version',
-        'packaging.requirements',
-        'packaging.specifiers',
-        'packaging.markers',
-        # 其他可能缺失的模块
-        'appdirs',
-        'more_itertools',
-        'zipp',
-        'typing_extensions',
     ]
 
     args = [
         '--name=GarminWeightSync',
         '--windowed',  # 无控制台窗口
-        '--onefile',   # 打包成单个文件
+        '--onedir',    # 打包成目录（启动更快）
         '--clean',     # 清理缓存
         '--noconfirm', # 不询问确认
         '--add-data=src:src',
@@ -70,7 +54,6 @@ def build_gui():
     args.extend([
         '--collect-all=fit_tool',
         '--collect-all=garth',
-        '--collect-all=logfire',
         # 排除不需要的模块
         '--exclude-module=tkinter',
         '--exclude-module=matplotlib',
@@ -78,8 +61,7 @@ def build_gui():
         '--exclude-module=pandas',
         '--exclude-module=scipy',
         '--exclude-module=PIL',
-        # 排除会导致问题的模块
-        '--exclude-module=logfire.integrations.pydantic',
+        '--exclude-module=logfire',
         # 入口文件（必须放在最后）
         'src/gui/main.py',
     ])
@@ -104,7 +86,7 @@ def build_cli():
     print("开始打包 CLI 版本...")
     print("=" * 60)
 
-    # 完整的隐藏导入列表
+    # 精简的隐藏导入列表（优化启动速度）
     hidden_imports = [
         # 自定义模块
         'garmin',
@@ -113,28 +95,12 @@ def build_cli():
         'core.models',
         'core.config_manager',
         'core.sync_service',
-        # jaraco 模块（pkg_resources 依赖）
-        'jaraco',
+        # pkg_resources 核心依赖（精简后）
         'jaraco.collections',
-        'jaraco.context',
         'jaraco.functools',
-        'jaraco.classes',
-        'jaraco.text',
-        'jaraco.compat',
-        # importlib 和 packaging
         'importlib_metadata',
         'pkg_resources',
-        'pkg_resources.extern',
         'packaging',
-        'packaging.version',
-        'packaging.requirements',
-        'packaging.specifiers',
-        'packaging.markers',
-        # 其他可能缺失的模块
-        'appdirs',
-        'more_itertools',
-        'zipp',
-        'typing_extensions',
     ]
 
     args = [

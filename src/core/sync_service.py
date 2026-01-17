@@ -331,7 +331,35 @@ class SyncOrchestrator:
                 session_dir=str(session_dir)  # 关键：传入可写路径
             )
 
-            if not garmin_client.login():
+            # 登录 Garmin - 根据是否有 input_callback 选择登录方法
+            if input_callback:
+                # UI 模式：使用 login_for_ui，支持 MFA 对话框
+                yield SyncProgress(
+                    stage="uploading",
+                    current=60,
+                    total=100,
+                    message="🏃 正在登录 Garmin（如启用了两步验证，请输入验证码）...",
+                    timestamp=datetime.datetime.now().strftime("%H:%M:%S"),
+                    username=username
+                )
+
+                # 通过 input_callback 获取 MFA 验证码
+                def get_mfa_code():
+                    logger.info(f"[DEBUG] get_mfa_code 被调用，正在请求用户输入...")
+                    mfa_result = input_callback({
+                        "action": "garmin_mfa",
+                        "username": username,
+                        "email": user.garmin.email
+                    })
+                    logger.info(f"[DEBUG] 收到 MFA 结果: {mfa_result}")
+                    return mfa_result.get("mfa_code", "")
+
+                login_success = garmin_client.login_for_ui(get_mfa_code)
+            else:
+                # CLI 模式：使用原有 login 方法
+                login_success = garmin_client.login()
+
+            if not login_success:
                 yield SyncProgress(
                     stage="error",
                     current=0,

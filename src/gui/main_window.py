@@ -666,9 +666,16 @@ class MainWindow(QMainWindow):
         details = progress.details
         action = details.get("action")
 
+        logger.info(f"[DEBUG] handle_user_input_request 被调用, action={action}, details={details}")
+
         if action == "xiaomi_login":
             # 直接在主线程中处理登录(同步方式)
             result = self._handle_xiaomi_login(progress.username, details)
+            # 将结果发送回工作线程
+            self._send_login_result(progress.username, result)
+        elif action == "garmin_mfa":
+            # 处理 Garmin MFA 请求
+            result = self._handle_garmin_mfa(progress.username, details)
             # 将结果发送回工作线程
             self._send_login_result(progress.username, result)
 
@@ -847,6 +854,40 @@ class MainWindow(QMainWindow):
             "passToken": pass_token,
             "ssecurity": ssecurity
         }
+
+    def _handle_garmin_mfa(self, username: str, details: Dict[str, Any]) -> Dict[str, Any]:
+        """处理 Garmin MFA 验证码输入(在主线程中同步执行)"""
+        try:
+            from gui.auth_dialogs import GarminMfaDialog
+
+            email = details.get("email", "")
+            logger.info(f"[DEBUG] _handle_garmin_mfa 被调用, email={email}")
+
+            # 显示 MFA 对话框
+            dialog = GarminMfaDialog(email, self)
+            logger.info(f"[DEBUG] GarminMfaDialog 已创建，准备显示")
+
+            result_code = dialog.exec()
+            logger.info(f"[DEBUG] 对话框返回结果: {result_code}")
+
+            if result_code == 1:  # Accepted
+                mfa_code = dialog.get_mfa_code()
+                logger.info(f"[DEBUG] 用户输入的 MFA 验证码: {mfa_code}")
+                return {
+                    "mfa_code": mfa_code
+                }
+            else:
+                # 用户取消
+                logger.info(f"[DEBUG] 用户取消了 MFA 输入")
+                return {
+                    "mfa_code": ""
+                }
+
+        except Exception as e:
+            logger.exception(f"Garmin MFA 处理失败: {e}")
+            return {
+                "mfa_code": ""
+            }
 
     def _send_login_result(self, username: str, result: Dict[str, Any]):
         """将登录结果发送回同步线程"""

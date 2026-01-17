@@ -1,0 +1,201 @@
+name: Build and Release Cross-Platform
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  PYTHON_VERSION: '3.12'
+  APP_NAME: 'GarminWeightSync'
+
+jobs:
+  build:
+    name: Build on ${{ matrix.platform }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            arch: arm64
+            platform: macos
+            artifact_ext: dmg
+
+          # macOS x86_64 (Intel)
+          - os: macos-14
+            arch: x64
+            platform: macos
+            artifact_ext: dmg
+
+          # Windows x64
+          - os: windows-latest
+            arch: x64
+            platform: windows
+            artifact_ext: zip
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Cache PyInstaller
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            build
+          key: ${{ runner.os }}-pyinstaller-${{ hashFiles('**/requirements-gui.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pyinstaller-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-gui.txt
+
+      - name: Verify PyQt6 installation
+        run: |
+          python -c "from PyQt6.QtCore import PYQT_VERSION_STR; print(f'PyQt6 version: {PYQT_VERSION_STR}')"
+          python -c "import PyInstaller; print(f'PyInstaller version: {PyInstaller.__version__}')"
+
+      - name: Extract version
+        id: version
+        shell: bash  # 必须指定 bash 才能使用 ${VAR#prefix} 语法
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="dev-${GITHUB_SHA:0:7}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Build with PyInstaller (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          python -m PyInstaller \
+            --name ${{ env.APP_NAME }} \
+            --windowed \
+            --onedir \
+            --clean \
+            --noconfirm \
+            --add-data "src:src" \
+            --runtime-hook pyi_rth_pyqt6.py \
+            --hidden-import PyQt6 \
+            --hidden-import PyQt6.QtCore \
+            --hidden-import PyQt6.QtGui \
+            --hidden-import PyQt6.QtWidgets \
+            --hidden-import garmin \
+            --hidden-import xiaomi \
+            --hidden-import core \
+            --hidden-import core.models \
+            --hidden-import core.config_manager \
+            --hidden-import core.sync_service \
+            --hidden-import jaraco.collections \
+            --hidden-import jaraco.functools \
+            --hidden-import importlib_metadata \
+            --hidden-import pkg_resources \
+            --hidden-import packaging \
+            --collect-all fit_tool \
+            --collect-all garth \
+            --exclude-module tkinter \
+            --exclude-module matplotlib \
+            --exclude-module numpy \
+            --exclude-module pandas \
+            --exclude-module scipy \
+            --exclude-module PIL \
+            --exclude-module logfire \
+            src/gui/main.py
+
+      - name: Build with PyInstaller (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          python -m PyInstaller `
+            --name ${{ env.APP_NAME }} `
+            --windowed `
+            --onedir `
+            --clean `
+            --noconfirm `
+            --add-data "src;src" `
+            --runtime-hook pyi_rth_pyqt6.py `
+            --hidden-import PyQt6 `
+            --hidden-import PyQt6.QtCore `
+            --hidden-import PyQt6.QtGui `
+            --hidden-import PyQt6.QtWidgets `
+            --hidden-import garmin `
+            --hidden-import xiaomi `
+            --hidden-import core `
+            --hidden-import core.models `
+            --hidden-import core.config_manager `
+            --hidden-import core.sync_service `
+            --hidden-import jaraco.collections `
+            --hidden-import jaraco.functools `
+            --hidden-import importlib_metadata `
+            --hidden-import pkg_resources `
+            --hidden-import packaging `
+            --collect-all fit_tool `
+            --collect-all garth `
+            --exclude-module tkinter `
+            --exclude-module matplotlib `
+            --exclude-module numpy `
+            --exclude-module pandas `
+            --exclude-module scipy `
+            --exclude-module PIL `
+            --exclude-module logfire `
+            src/gui/main.py
+        shell: pwsh
+
+      - name: Create DMG (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "${{ env.APP_NAME }}" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --app-drop-link 450 185 \
+            "${{ env.APP_NAME }}-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.version }}.${{ matrix.artifact_ext }}" \
+            "dist/${{ env.APP_NAME }}.app"
+
+      - name: Create ZIP archive (Windows)
+        if: matrix.platform == 'windows'
+        run: |
+          Compress-Archive -Path "dist\${{ env.APP_NAME }}" `
+            -DestinationPath "${{ env.APP_NAME }}-${{ matrix.platform }}-${{ matrix.arch }}-${{ steps.version.outputs.version }}.${{ matrix.artifact_ext }}"
+        shell: pwsh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            *.${{ matrix.artifact_ext }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            *.${{ matrix.artifact_ext }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
