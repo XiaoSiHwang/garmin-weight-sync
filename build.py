@@ -3,9 +3,20 @@ PyInstaller 打包脚本
 用于将 Garmin Weight Sync 打包成独立可执行文件
 """
 import PyInstaller.__main__
-import os
+import subprocess
 import sys
 from pathlib import Path
+
+
+def ensure_pillow():
+    """确保 Pillow 已安装（用于图标转换）"""
+    try:
+        import PIL
+        print(f"✅ Pillow 已安装 (版本: {PIL.__version__})")
+    except ImportError:
+        print("📦 正在安装 Pillow（用于图标转换）...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "Pillow"])
+        print("✅ Pillow 安装完成")
 
 
 def build_gui():
@@ -13,6 +24,10 @@ def build_gui():
     print("=" * 60)
     print("开始打包 GUI 版本...")
     print("=" * 60)
+
+    # 确保 Pillow 已安装
+    ensure_pillow()
+    print()
 
     # 精简的隐藏导入列表（优化启动速度）
     hidden_imports = [
@@ -42,7 +57,9 @@ def build_gui():
         '--onedir',    # 打包成目录（启动更快）
         '--clean',     # 清理缓存
         '--noconfirm', # 不询问确认
+        '--icon=logo/logo.png',  # 应用图标
         '--add-data=src:src',
+        '--add-data=logo/logo.png:logo',  # 打包 Logo 文件
         '--runtime-hook=pyi_rth_pyqt6.py',  # 添加 runtime hook 修复 inspect 问题
     ]
 
@@ -60,16 +77,10 @@ def build_gui():
         '--exclude-module=numpy',
         '--exclude-module=pandas',
         '--exclude-module=scipy',
-        '--exclude-module=PIL',
         '--exclude-module=logfire',
         # 入口文件（必须放在最后）
         'src/gui/main.py',
     ])
-
-    # 添加图标（如果存在）
-    icon_path = 'src/gui/resources/icons/app_icon.ico'
-    if os.path.exists(icon_path):
-        args.insert(1, f'--icon={icon_path}')
 
     PyInstaller.__main__.run(args)
 

@@ -21,6 +21,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.sync_service import SyncOrchestrator, SyncProgress
 from core.models import UserModel
+from utils.paths import get_base_path
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,12 @@ class MainWindow(QMainWindow):
             config_path: 配置文件路径
         """
         super().__init__()
+
+        # 设置窗口图标
+        icon_path = get_base_path() / "logo" / "logo.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
         self.config_path = Path(config_path)  # 保存当前配置路径
         self.config_loaded = True  # 跟踪配置是否已加载
         self.orchestrator = SyncOrchestrator(config_path)

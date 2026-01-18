@@ -115,3 +115,30 @@ def get_config_dir() -> Path:
         config_dir = Path(__file__).parent.parent.parent
 
     return config_dir
+
+
+def get_base_path() -> Path:
+    """
+    获取项目基础路径，兼容开发和打包环境
+
+    用于定位资源文件（如 logo、配置等）
+
+    Returns:
+        Path: 项目基础路径
+    """
+    if getattr(sys, 'frozen', False):
+        # 打包后的应用：使用可执行文件所在目录
+        if sys.platform == 'darwin':
+            # macOS .app 包
+            # 可执行文件在 .app/Contents/MacOS/
+            # 资源文件在 .app/Contents/MacOS/ 目录下
+            exe_path = Path(sys.executable)
+            base_path = exe_path.parent
+        else:
+            # Windows/Linux：使用可执行文件所在目录
+            base_path = Path(sys.executable).parent
+    else:
+        # 开发环境：使用项目根目录
+        base_path = Path(__file__).parent.parent.parent
+
+    return base_path

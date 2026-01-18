@@ -87,13 +87,16 @@ jobs:
       - name: Build with PyInstaller (macOS)
         if: matrix.platform == 'macos'
         run: |
+          pip install Pillow
           python -m PyInstaller \
             --name ${{ env.APP_NAME }} \
             --windowed \
             --onedir \
             --clean \
             --noconfirm \
+            --icon logo/logo.png \
             --add-data "src:src" \
+            --add-data "logo/logo.png:logo" \
             --runtime-hook pyi_rth_pyqt6.py \
             --hidden-import PyQt6 \
             --hidden-import PyQt6.QtCore \
@@ -117,20 +120,22 @@ jobs:
             --exclude-module numpy \
             --exclude-module pandas \
             --exclude-module scipy \
-            --exclude-module PIL \
             --exclude-module logfire \
             src/gui/main.py
 
       - name: Build with PyInstaller (Windows)
         if: matrix.platform == 'windows'
         run: |
+          pip install Pillow
           python -m PyInstaller `
             --name ${{ env.APP_NAME }} `
             --windowed `
             --onedir `
             --clean `
             --noconfirm `
+            --icon logo/logo.png `
             --add-data "src;src" `
+            --add-data "logo/logo.png;logo" `
             --runtime-hook pyi_rth_pyqt6.py `
             --hidden-import PyQt6 `
             --hidden-import PyQt6.QtCore `
@@ -154,7 +159,6 @@ jobs:
             --exclude-module numpy `
             --exclude-module pandas `
             --exclude-module scipy `
-            --exclude-module PIL `
             --exclude-module logfire `
             src/gui/main.py
         shell: pwsh

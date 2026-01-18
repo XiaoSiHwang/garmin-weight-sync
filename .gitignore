@@ -55,5 +55,5 @@ data/*
 /release/*
 
 dist/*
-GarminWeightSync.spec/*
+GarminWeightSync.spec
 CLAUDE.md

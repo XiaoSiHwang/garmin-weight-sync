@@ -6,11 +6,13 @@ import logging
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from gui.main_window import MainWindow
+from utils.paths import get_base_path
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +35,14 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Garmin Weight Sync")
     app.setOrganizationName("GarminSync")
+
+    # 设置应用图标（支持开发和打包环境）
+    icon_path = get_base_path() / "logo" / "logo.png"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
+        logger.info(f"已设置应用图标: {icon_path}")
+    else:
+        logger.warning(f"未找到图标文件: {icon_path}")
 
     # 获取配置文件路径（支持命令行参数）
     config_path = "users.json"  # 默认配置
