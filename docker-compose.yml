@@ -1,8 +1,9 @@
-version: '3.8'
+# version: '3.8'
 
 services:
   # Login service - run once for initial setup
   login:
+    build: .
     image: lesliehwang/garmin-weight-sync:latest
     container_name: garmin-sync-login
     volumes:
@@ -16,9 +17,21 @@ services:
 
   # Sync service - run periodically
   sync:
+    build: .
     image: lesliehwang/garmin-weight-sync:latest
     container_name: garmin-sync
     volumes:
       - ./config:/app/config
       - ./data:/app/data
     command: ["python", "src/main.py", "--config", "config/users.json", "--sync"]
+
+  # Daily sync service - run continuously with daily sync
+  daily_sync:
+    build: .
+    image: lesliehwang/garmin-weight-sync:latest
+    container_name: garmin-daily-sync
+    volumes:
+      - ./config:/app/config
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["python", "src/daily_sync.py", "--config", "config/users.json", "--sync", "--delay", "300", "--interval", "86400"]

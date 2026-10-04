@@ -113,7 +113,9 @@ cp config/users.json.template config/users.json
 | `garmin.domain` | 佳明服务器区域 | 中国区填 `CN`，国际区填 `COM` |
 | `token` | 首次留空，登录后自动填充 | 留空即可 |
 
-### 第三步：拉取 Docker 镜像
+### 第三步：拉取 Docker 镜像（或本地构建）
+
+#### 拉取 Docker 镜像
 
 本项目已将预构建的镜像托管到 Docker Hub，无需本地构建，直接拉取即可：
 
@@ -126,6 +128,29 @@ docker-compose pull
 ```
 Pulling sync ... done
 Pulling login ... done
+```
+
+#### 本地构建（如项目有更新）
+
+如果项目添加了新功能或文件（如 `daily_sync.py`），Docker Hub 的预构建镜像可能不包含这些更新。此时需要本地构建：
+
+```bash
+docker-compose build --no-cache
+```
+
+这会基于本地的 `Dockerfile` 和源代码重新构建镜像。首次构建可能需要 2-3 分钟。
+
+#### 删除镜像（当需要时）
+
+删除本地构建的镜像：
+
+```bash
+# 删除 daily_sync 相关的镜像
+docker-compose down daily_sync
+docker image rm lesliehwang/garmin-weight-sync:latest
+
+# 或重新构建时覆盖旧镜像
+docker-compose build --no-cache
 ```
 
 ### 第四步：首次登录（获取小米授权）
@@ -184,6 +209,76 @@ ls -la data/weight_data_*.json
 
 如果您希望每天自动同步，可以设置定时任务。
 
+### 使用持续运行的容器（推荐）
+
+此方式在 Docker 中持续运行一个容器，自动每日同步数据。容器支持自动重启，无需外部定时任务。
+
+#### 启动持续同步容器
+
+1. 确保已完成首次登录（第四步）。
+2. 运行以下命令启动容器：
+   ```bash
+   docker-compose up -d daily_sync
+   ```
+   - `-d` 表示后台运行（detached mode）。
+   - 容器启动后会**延迟 5 分钟**，然后开始同步。
+   - 之后每 **24 小时** 自动同步一次。
+
+#### 管理 daily_sync 容器
+
+| 操作 | 命令 | 说明 |
+|------|------|------|
+| 启动容器 | `docker-compose up -d daily_sync` | 后台启动，会立即延迟 5 分钟后开始 |
+| 查看状态 | `docker-compose ps` | 显示所有容器状态 |
+| 查看日志 | `docker-compose logs -f daily_sync` | 实时查看同步日志，按 `Ctrl+C` 退出 |
+| 停止容器 | `docker-compose stop daily_sync` | 暂停容器（可稍后重启） |
+| 重启容器 | `docker-compose restart daily_sync` | 重启容器 |
+| 删除容器 | `docker-compose down daily_sync` | 完全停止并删除容器 |
+
+#### 自定义同步参数（可选）
+
+如需自定义延迟时间或同步间隔，可修改 `docker-compose.yml` 中 `daily_sync` 的 `command` 参数：
+
+```yaml
+command: ["python", "src/daily_sync.py", "--config", "config/users.json", "--sync", "--delay", "600", "--interval", "43200"]
+```
+
+参数说明：
+- `--delay 600`：启动后延迟 600 秒（10 分钟）再进行首次同步。默认 300 秒。
+- `--interval 43200`：每次同步间隔 43200 秒（12 小时）。默认 86400 秒（24 小时）。
+
+#### 日志保存
+
+容器的日志可以通过以下方式查看：
+
+```bash
+# 实时日志
+docker-compose logs -f daily_sync
+
+# 查看最后 100 行
+docker-compose logs -n 100 daily_sync
+
+# 保存日志到文件
+docker-compose logs daily_sync > sync_logs.txt
+```
+
+#### 重启策略
+
+`daily_sync` 容器配置了 `restart: unless-stopped`，表示：
+- 容器意外停止时**自动重启**。
+- 只有通过 `docker-compose stop` 或 `docker-compose down` 才会停止。
+- Docker 守护进程重启后，容器也会自动启动。
+
+#### 容器重启流程
+
+如果容器因任何原因重启：
+1. 容器启动
+2. 延迟 5 分钟（防止频繁重启时立即运行）
+3. 执行同步
+4. 等待 24 小时后继续同步
+
+---
+
 ### Windows 用户（任务计划程序）
 
 1. 按 `Win + R`，输入 `taskschd.msc` 并回车
@@ -240,10 +335,19 @@ ls -la data/weight_data_*.json
 | 操作 | 命令 |
 |------|------|
 | 拉取镜像 | `docker-compose pull` |
+| 本地构建镜像 | `docker-compose build --no-cache` |
 | 首次登录 | `docker-compose --profile login run --rm login` |
 | 执行同步 | `docker-compose run --rm sync` |
 | 查看日志 | `docker-compose logs sync` |
 | 停止所有容器 | `docker-compose down` |
+
+### daily_sync 容器命令
+
+| 操作 | 命令 |
+|------|------|
+| 启动持续同步 | `docker-compose up -d daily_sync` |
+| 查看 daily_sync 日志 | `docker-compose logs -f daily_sync` |
+| 停止 daily_sync | `docker-compose stop daily_sync` |
 
 ---
 
@@ -258,10 +362,15 @@ garmin-weight-sync/
 │   ├── garmin-fit/         # 生成的 FIT 文件
 │   ├── weight_data_*.json  # 数据备份
 │   └── sync.log            # 定时任务日志（如设置）
-├── src/                    # 源代码
+├── src/
+│   ├── main.py             # 主同步程序
+│   ├── daily_sync.py       # 持续同步程序（新增）
+│   └── ...                 # 其他源代码
 ├── Dockerfile              # Docker 镜像定义
 ├── docker-compose.yml      # Docker 服务编排
-└── DOCKER_SETUP.md         # 本文档
+├── DOCKER_SETUP.md         # Docker 部署指南（本文档）
+├── DAILY_SYNC.md           # Daily Sync 使用指南（新增）
+└── README.md               # 项目说明
 ```
 
 ---
@@ -310,6 +419,70 @@ cat data/sync.log
 docker compose run --rm sync
 ```
 （注意是 `docker compose` 而不是 `docker-compose`）
+
+### daily_sync 相关问题
+
+#### Q: daily_sync 容器无法启动
+
+**症状**：运行 `docker-compose up -d daily_sync` 后没有响应，或提示 "can't open file '/app/src/daily_sync.py'"
+
+**解决方案**：
+1. 查看错误日志：`docker-compose logs daily_sync`
+2. 如果提示找不到 `daily_sync.py`，需要本地构建：`docker-compose build --no-cache`
+3. 确保配置文件存在：`config/users.json` 是否存在
+4. 尝试重建：`docker-compose up -d --build daily_sync`
+
+#### Q: daily_sync 容器启动后没有同步怎么办？
+
+**A:** daily_sync 容器启动后会延迟 5 分钟，然后才进行首次同步。您可以：
+1. 使用 `docker-compose logs -f daily_sync` 查看实时日志，等待同步开始。
+2. 如果日志显示错误，检查 `config/users.json` 配置是否正确。
+3. 确保已完成首次登录（第四步）。
+
+#### Q: daily_sync 容器中的同步失败怎么办？
+
+**A:** 容器会自动在 1 小时后重试。您也可以：
+1. 查看日志：`docker-compose logs -f daily_sync`
+2. 检查网络连接是否正常
+3. 验证 `config/users.json` 中的用户名、密码和 token 是否有效
+4. 必要时重新运行登录：`docker-compose --profile login run --rm login`
+
+#### Q: 如何暂停 daily_sync 的自动同步？
+
+**A:** 使用以下命令暂停容器（不会删除容器配置）：
+```bash
+docker-compose stop daily_sync
+```
+要重新启动，使用：
+```bash
+docker-compose restart daily_sync
+```
+
+#### Q: daily_sync 容器重启时会丢失数据吗？
+
+**A:** 不会。所有数据都存储在 `config/` 和 `data/` 目录中，这些目录已通过 volumes 映射到容器内，数据不会丢失。
+
+#### Q: 如何修改 daily_sync 的同步间隔？
+
+**A:** 修改 `docker-compose.yml` 中 `daily_sync` 服务的 `command` 参数：
+```yaml
+command: ["python", "src/daily_sync.py", "--config", "config/users.json", "--sync", "--interval", "43200"]
+```
+其中 `--interval 43200` 表示 12 小时（单位为秒）。修改后重启容器：
+```bash
+docker-compose restart daily_sync
+```
+
+#### Q: 运行 daily_sync 时提示 "can't open file '/app/src/daily_sync.py': No such file or directory"
+
+**A:** 这是因为 Docker Hub 的预构建镜像是旧版本，不包含 `daily_sync.py` 文件。需要本地构建镜像：
+```bash
+docker-compose build --no-cache
+```
+构建完成后重新启动容器：
+```bash
+docker-compose up -d daily_sync
+```
 
 ---
 
